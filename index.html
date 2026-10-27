@@ -430,6 +430,16 @@
     .my-copy-pnl div { flex:1; min-width:0; }
     .my-copy-pnl small { display:block; margin-bottom:3px; color:var(--muted); font-size:9px; }
     .my-copy-pnl b { color:var(--lime); font-size:12px; font-variant-numeric:tabular-nums; }
+    .my-copy-trend { margin-top:11px; padding-top:9px; border-top:1px solid var(--line); }
+    .my-copy-trend-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; color:var(--muted); font-size:9px; }
+    .my-copy-trend-head b { color:var(--lime); font-size:10px; font-variant-numeric:tabular-nums; }
+    .my-copy-trend svg { display:block; width:100%; height:38px; overflow:visible; }
+    .my-copy-trend .grid { fill:none; stroke:#242c2f; stroke-width:1; }
+    .my-copy-trend .area { fill:rgba(34,253,115,.08); stroke:none; }
+    .my-copy-trend .line { fill:none; stroke:var(--lime); stroke-width:2; vector-effect:non-scaling-stroke; }
+    .position-coin-filter { height:32px; min-width:126px; padding:0 28px 0 10px; border:1px solid var(--line); border-radius:4px; background:var(--surface-2); color:var(--soft); cursor:pointer; outline:none; flex:0 0 auto; }
+    .position-coin-filter:hover, .position-coin-filter:focus { border-color:#465158; }
+    .trader-filter-empty { display:none; padding:48px 18px; border:1px solid var(--line); border-radius:6px; color:var(--muted); text-align:center; }
     #market-view > .market-layout { grid-column:1; padding:0 32px 30px; }
     #market-view.active > .market-layout { height:100%; overflow-y:auto; overscroll-behavior:contain; }
     .market-subnav { display:flex; gap:24px; align-items:center; margin-top:18px; }
@@ -1084,7 +1094,7 @@
     }
     const myCopyModule = $('.my-copy-module');
     if(myCopyModule){
-      myCopyModule.innerHTML = `<div class="my-copy-module-head"><strong>我的跟单账户</strong><span>跟随交易员 3 人</span></div><div class="my-copy-module-body"><div class="my-copy-equity"><small>跟单账户权益（USDC）</small><b>13,482.60</b></div><div class="overview-actions"><button class="primary-btn equityTransfer">划转</button><button class="secondary-btn" data-go="manage">详情</button></div></div><div class="my-copy-pnl"><div><small>累计收益</small><b>+885.75 USDC</b></div><div><small>今日收益</small><b>+126.40 USDC</b></div></div>`;
+      myCopyModule.innerHTML = `<div class="my-copy-module-head"><strong>我的跟单账户</strong><span>跟随交易员 3 人</span></div><div class="my-copy-module-body"><div class="my-copy-equity"><small>跟单账户权益（USDC）</small><b>13,482.60</b></div><div class="overview-actions"><button class="primary-btn equityTransfer">划转</button><button class="secondary-btn" data-go="manage">详情</button></div></div><div class="my-copy-pnl"><div><small>累计收益</small><b>+885.75 USDC</b></div><div><small>今日收益</small><b>+126.40 USDC</b></div></div><div class="my-copy-trend"><div class="my-copy-trend-head"><span>近 30 日收益走势</span><b>+7.03%</b></div><svg viewBox="0 0 340 38" preserveAspectRatio="none" role="img" aria-label="近30日跟单收益走势"><path class="grid" d="M0 32H340M0 18H340"/><path class="area" d="M0 31L34 29L68 30L102 24L136 26L170 19L204 21L238 13L272 16L306 6L340 9V38H0Z"/><path class="line" d="M0 31L34 29L68 30L102 24L136 26L170 19L204 21L238 13L272 16L306 6L340 9"/></svg></div>`;
       renderIcons();
     }
     $('#performanceSection .detail-kpis')?.insertAdjacentHTML('beforeend', '<div class="detail-kpi"><small>跟单用户收益（USDC）</small><b style="color:var(--lime)">+36,842.90</b></div><div class="detail-kpi"><small>最近交易时间</small><b>2026-10-20 14:10:26</b></div>');
@@ -1596,19 +1606,27 @@
 
     // Copy-market search, flat filters and sorting.
     const marketSearch = $('#market-view input.search');
+    marketSearch?.insertAdjacentHTML('beforebegin', '<select class="position-coin-filter" id="positionCoinFilter" aria-label="按持仓币种筛选"><option value="all">全部持仓币种</option><option value="BTC">BTC</option><option value="ETH">ETH</option><option value="SOL">SOL</option><option value="ARB">ARB</option></select>');
+    leaderGrid?.insertAdjacentHTML('afterend', '<div class="trader-filter-empty" id="traderFilterEmpty">暂无持有该币种的带单交易员</div>');
+    const traderPositionCoins = ['BTC,ETH','BTC,SOL','ETH,ARB','BTC,ARB','ETH,SOL','BTC,ETH,SOL'];
+    $$('.trader-card').forEach((card,index) => { card.dataset.positionCoins = traderPositionCoins[index] || 'BTC,ETH'; });
     function filterTraders(){
       const query = (marketSearch?.value || '').trim().toLowerCase();
+      const positionCoin = $('#positionCoinFilter')?.value || 'all';
       const verifiedOnly = $('.market-filter-btn.active')?.dataset.marketFilter === 'verified';
       const traderGroup = $('.market-subnav button.active')?.dataset.traderGroup || 'gainer';
       $('#market-view').dataset.traderGroup = traderGroup;
       $$('.trader-card').forEach((card,index) => {
         const matchesText = !query || card.textContent.toLowerCase().includes(query);
         const matchesVerified = !verifiedOnly || $('.badge',card)?.textContent === '已认证';
-        const matchesGroup = traderGroup === 'followed' ? index < 3 : card.dataset.performance === traderGroup;
-        card.classList.toggle('is-hidden', !(matchesText && matchesVerified && matchesGroup));
+        const matchesGroup = traderGroup === 'followed' ? Number(card.dataset.originalOrder) < 3 : card.dataset.performance === traderGroup;
+        const matchesCoin = positionCoin === 'all' || card.dataset.positionCoins.split(',').includes(positionCoin);
+        card.classList.toggle('is-hidden', !(matchesText && matchesVerified && matchesGroup && matchesCoin));
       });
+      $('#traderFilterEmpty').style.display = $$('.trader-card:not(.is-hidden)').length ? 'none' : 'block';
     }
     marketSearch?.addEventListener('input', filterTraders);
+    $('#positionCoinFilter')?.addEventListener('change', event => { filterTraders(); toast(event.currentTarget.value === 'all' ? '已显示全部持仓币种' : `已筛选持有 ${event.currentTarget.value} 的交易员`); });
     $$('.trader-card').forEach((card,index) => { card.dataset.originalOrder = index; });
     $$('.market-filter-btn').forEach(btn => btn.addEventListener('click', () => {
       $$('.market-filter-btn').forEach(b => b.classList.toggle('active', b === btn));
